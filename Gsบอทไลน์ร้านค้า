@@ -1,0 +1,526 @@
+// -----------------------------------------------------------------------------
+// SECTION 1: CONFIGURATION
+// -----------------------------------------------------------------------------
+const CHANNEL_ACCESS_TOKEN = 'F8pMLR4byz0mnLVfVUs1tk6kwboEP0PgdYg2gLxollEDGEylsCAxSO2QAQvqFc2N/rp9NEeAk6iln88oqjblEUxdFHpMnlDrHtGitqylEd5fnInIOgTpeaC112gyzyTCARr5gM3WUrVsSCK7YYRv4QdB04t89/1O/w1cDnyilFU=';
+const SPREADSHEET_ID = '1mQvTlyBpor8d9NSw15vQ9k0jGSvbXQssp1AUpY0y_vE';
+const CUSTOMER_SHEET_NAME = 'Customers';
+const QUEUE_SHEET_NAME = 'Queue';
+const MENU_SHEET_NAME = 'Menu';
+const CART_SHEET_NAME = 'Cart';
+const ORDERS_SHEET_NAME = 'Orders';
+
+// -----------------------------------------------------------------------------
+// SECTION 2: CORE FUNCTIONS
+// -----------------------------------------------------------------------------
+const SPREADSHEET = SpreadsheetApp.openById(SPREADSHEET_ID);
+const LINE_REPLY_URL = 'https://api.line.me/v2/bot/message/reply';
+const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
+
+function doGet(e) {
+  initializeSheets();
+  return HtmlService.createTemplateFromFile('Index').evaluate()
+    .setTitle('ระบบจัดการร้านสหกรณ์')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function doPost(e) {
+  try {
+    initializeSheets();
+    const event = JSON.parse(e.postData.contents).events[0];
+    const replyToken = event.replyToken;
+    const userId = event.source.userId;
+
+    if (event.type === 'postback') {
+      handlePostback(event);
+      return;
+    }
+    
+    const userMessage = (event.message && event.message.text) ? event.message.text.trim() : '';
+    const customerSheet = SPREADSHEET.getSheetByName(CUSTOMER_SHEET_NAME);
+    const customerData = findRow(customerSheet, userId, 2);
+    let userState = customerData ? customerData.values[3] : null;
+
+    if (!customerData) {
+      addNewUser(customerSheet, userId);
+      reply(replyToken, [{ type: 'text', text: 'สวัสดีครับ! ยินดีต้อนรับสู่ร้านค้าสวัสดิการ 🌶️\n\nเพื่อเริ่มใช้งาน กรุณาพิมพ์เบอร์โทรศัพท์ของคุณเพื่อใช้ในการอ้างอิงและจองคิวนะครับ (เช่น 0812345678)' }]);
+    } else if (userState === 'registering_phone') {
+      const phone = userMessage;
+      if (phone.match(/^\d{10}$/)) {
+        if (isPhoneNumberDuplicate(phone)) {
+          reply(replyToken, [{ type: 'text', text: 'เบอร์โทรนี้มีอยู่ในระบบแล้วครับ กรุณาลองใช้เบอร์อื่น หรือติดต่อแอดมินครับ' }]);
+        } else {
+          updateCustomerData(userId, { phone: phone, state: 'registering_name' });
+          reply(replyToken, [{ type: 'text', text: 'ขอบคุณครับ 🙏\nต่อไปกรุณาพิมพ์ ชื่อ-นามสกุล ของคุณเพื่อใช้ในการจองคิวครับ' }]);
+        }
+      } else {
+        reply(replyToken, [{ type: 'text', text: 'รูปแบบเบอร์โทรไม่ถูกต้อง กรุณาพิมพ์เบอร์โทรศัพท์ 10 หลักครับ (เช่น 0812345678)' }]);
+      }
+    } else if (userState === 'registering_name') {
+      const name = userMessage;
+      updateCustomerData(userId, { name: name, state: 'idle' });
+      const updatedCustomerData = findRow(customerSheet, userId, 2).values;
+      const userInfo = { name: updatedCustomerData[2], phone: updatedCustomerData[0] };
+      reply(replyToken, [
+        { type: 'text', text: `คุณ ${name} ลงทะเบียนเรียบร้อยแล้วครับ! 🎉` },
+        createMainMenuFlex(userInfo)
+      ]);
+    } else {
+      handleUserCommands(replyToken, userId, userMessage);
+    }
+  } catch (err) {
+    Logger.log('Error in doPost: ' + err.toString() + ' Stack: ' + err.stack);
+  }
+  return ContentService.createTextOutput(JSON.stringify({'status': 'ok'})).setMimeType(ContentService.MimeType.JSON);
+}
+
+
+function handleUserCommands(replyToken, userId, command) {
+  const customerSheet = SPREADSHEET.getSheetByName(CUSTOMER_SHEET_NAME);
+  const customerData = findRow(customerSheet, userId, 2).values;
+  const userInfo = { name: customerData[2], phone: customerData[0] };
+  switch (command) {
+    case 'ระบบจองคิว':
+      handleQueueing(replyToken, userInfo);
+      break;
+    case 'เช็คคิว':
+      handleCheckQueue(replyToken, userInfo);
+      break;
+    case 'ยกเลิกคิว':
+      handleCancelQueue(replyToken, userInfo);
+      break;
+    case 'เมนู':
+      reply(replyToken, [createMenuFlex()]);
+      break;
+    case 'ดูตะกร้า':
+    case 'ตะกร้า':
+      reply(replyToken, [createCartFlex(userId)]);
+      break;
+    default:
+      reply(replyToken, [
+        { type: 'text', text: 'เลือกรายการที่ต้องการได้เลยครับ' },
+        createMainMenuFlex(userInfo)
+      ]);
+      break;
+  }
+}
+
+function handlePostback(event) {
+  const replyToken = event.replyToken;
+  const userId = event.source.userId;
+  const postbackData = event.postback.data;
+  const params = postbackData.split('&').reduce((acc, part) => {
+    const [key, value] = part.split('=');
+    acc[key] = decodeURIComponent(value);
+    return acc;
+  }, {});
+  const action = params.action;
+
+  if (action === 'add_to_cart') {
+    const itemName = params.item;
+    const itemPrice = parseFloat(params.price);
+    if (itemName && !isNaN(itemPrice)) {
+      handleAddToCart(replyToken, userId, itemName, itemPrice);
+    }
+  } else if (action === 'confirm_order') {
+    confirmOrder(replyToken, userId);
+  } else if (action === 'clear_cart') {
+    clearCart(replyToken, userId);
+  }
+}
+
+// ... (Sections 3, 4, 5, 6, 7 remain unchanged) ...
+// -----------------------------------------------------------------------------
+// SECTION 3: ORDER & CART MANAGEMENT
+// -----------------------------------------------------------------------------
+function handleAddToCart(replyToken, userId, itemName, itemPrice) {
+  try {
+    const cartSheet = SPREADSHEET.getSheetByName(CART_SHEET_NAME);
+    const data = cartSheet.getDataRange().getValues();
+    let itemRowIndex = -1;
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === userId && data[i][1] === itemName) {
+        itemRowIndex = i + 1;
+        break;
+      }
+    }
+    if (itemRowIndex !== -1) {
+      const quantityCell = cartSheet.getRange(itemRowIndex, 3);
+      quantityCell.setValue(quantityCell.getValue() + 1);
+    } else {
+      cartSheet.appendRow([userId, itemName, 1, itemPrice]);
+    }
+    updateCustomerData(userId, { state: 'ordering' });
+    reply(replyToken, [{ type: 'text', text: `✅ เพิ่ม '${itemName}' ลงในตะกร้าเรียบร้อย` }]);
+  } catch (e) {
+    Logger.log("Error in handleAddToCart: " + e.toString());
+  }
+}
+
+function confirmOrder(replyToken, userId) {
+  const cartSheet = SPREADSHEET.getSheetByName(CART_SHEET_NAME);
+  const ordersSheet = SPREADSHEET.getSheetByName(ORDERS_SHEET_NAME);
+  const customerSheet = SPREADSHEET.getSheetByName(CUSTOMER_SHEET_NAME);
+  const customerData = findRow(customerSheet, userId, 2).values;
+  const customerPhone = String(customerData[0]);
+  const customerName = customerData[2];
+
+  const cartData = cartSheet.getDataRange().getValues();
+  const userCartItems = [];
+  const rowsToDelete = [];
+  let totalPrice = 0;
+  for (let i = 1; i < cartData.length; i++) {
+    if (cartData[i][0] === userId) {
+      const [, itemName, quantityRaw, priceRaw] = cartData[i];
+      const quantity = parseInt(quantityRaw, 10) || 0;
+      const price = parseFloat(priceRaw) || 0;
+
+      userCartItems.push(`${itemName} x${quantity}`);
+      totalPrice += quantity * price;
+      rowsToDelete.push(i + 1);
+    }
+  }
+
+  if (userCartItems.length === 0) {
+    reply(replyToken, [{ type: 'text', text: 'ตะกร้าของคุณว่างเปล่า' }]);
+    return;
+  }
+
+  const orderId = new Date().getTime().toString();
+  const itemsString = userCartItems.join(', ');
+  // ✅ บังคับ TotalPrice ให้เป็น Number ชัดเจน
+  ordersSheet.appendRow([
+    orderId,
+    customerPhone,
+    customerName,
+    userId,
+    itemsString,
+    Number(totalPrice),
+    new Date(),
+    'pending'
+  ]);
+  // ลบข้อมูลตะกร้า
+  for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+    cartSheet.deleteRow(rowsToDelete[i]);
+  }
+
+  updateCustomerData(userId, { state: 'idle' });
+  reply(replyToken, [createOrderConfirmationFlex(orderId, customerName, userCartItems, totalPrice)]);
+}
+
+function clearCart(replyToken, userId) {
+  const cartSheet = SPREADSHEET.getSheetByName(CART_SHEET_NAME);
+  const cartData = cartSheet.getDataRange().getValues();
+  const rowsToDelete = [];
+  for (let i = 1; i < cartData.length; i++) {
+    if (cartData[i][0] === userId) {
+      rowsToDelete.push(i + 1);
+    }
+  }
+  for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+    cartSheet.deleteRow(rowsToDelete[i]);
+  }
+  updateCustomerData(userId, { state: 'idle' });
+  reply(replyToken, [{ type: 'text', text: 'ล้างตะกร้าเรียบร้อยแล้ว' }]);
+}
+
+// -----------------------------------------------------------------------------
+// SECTION 4: QUEUE MANAGEMENT
+// -----------------------------------------------------------------------------
+function handleQueueing(replyToken, userInfo) {
+  const queueSheet = SPREADSHEET.getSheetByName(QUEUE_SHEET_NAME);
+  const existingQueue = findRow(queueSheet, userInfo.phone, 1);
+  if (existingQueue) {
+    reply(replyToken, [{ type: 'text', text: `คุณ ${userInfo.name} มีคิวอยู่แล้ว เป็นคิวที่ ${existingQueue.row - 1}` }]);
+  } else {
+    queueSheet.appendRow([userInfo.phone, userInfo.name, new Date()]);
+    reply(replyToken, [{ type: 'text', text: `จองคิวสำเร็จ! คุณ ${userInfo.name} ได้คิวที่ ${queueSheet.getLastRow() - 1}` }]);
+  }
+}
+
+function handleCheckQueue(replyToken, userInfo) {
+  const queueSheet = SPREADSHEET.getSheetByName(QUEUE_SHEET_NAME);
+  const userQueue = findRow(queueSheet, userInfo.phone, 1);
+  if (userQueue) {
+    const currentQueueNumber = userQueue.row - 1;
+    const ahead = currentQueueNumber - 1;
+    reply(replyToken, [createQueueInfoFlex(userInfo, currentQueueNumber, ahead, queueSheet.getLastRow() - 1)]);
+  } else {
+    reply(replyToken, [{ type: 'text', text: `คุณ ${userInfo.name} ยังไม่มีคิวในระบบ` }]);
+  }
+}
+
+function handleCancelQueue(replyToken, userInfo) {
+  const queueSheet = SPREADSHEET.getSheetByName(QUEUE_SHEET_NAME);
+  const userQueue = findRow(queueSheet, userInfo.phone, 1);
+  if (userQueue) {
+    queueSheet.deleteRow(userQueue.row);
+    reply(replyToken, [{ type: 'text', text: `คุณ ${userInfo.name} ยกเลิกคิวเรียบร้อยแล้ว` }]);
+  } else {
+    reply(replyToken, [{ type: 'text', 'text': 'ไม่พบข้อมูลการจองคิว' }]);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// SECTION 5: GOOGLE SHEETS HELPER FUNCTIONS
+// -----------------------------------------------------------------------------
+function initializeSheets() {
+  const requiredSheets = {
+    [CUSTOMER_SHEET_NAME]: ['UID (เบอร์โทร)', 'lineUserId', 'ชื่อ-สกุล', 'สถานะ', 'Timestamp'],
+    [QUEUE_SHEET_NAME]: ['UID (เบอร์โทร)', 'ชื่อ-สกุล', 'Timestamp'],
+    [MENU_SHEET_NAME]: ['ชื่อเมนู', 'ราคา', 'รูปภาพ (URL)', 'สถานะ'],
+    [CART_SHEET_NAME]: ['lineUserId', 'itemName', 'quantity', 'price'],
+    [ORDERS_SHEET_NAME]: ['OrderID', 'CustomerPhone', 'CustomerName', 'lineUserId', 'Items', 'TotalPrice', 'Timestamp', 'Status']
+  };
+  for (const sheetName in requiredSheets) {
+    let sheet = SPREADSHEET.getSheetByName(sheetName);
+    if (!sheet) {
+      sheet = SPREADSHEET.insertSheet(sheetName);
+      const headers = requiredSheets[sheetName];
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+      if (sheetName === MENU_SHEET_NAME && sheet.getLastRow() === 1) {
+        sheet.appendRow(['หมูสามชั้น', 10, 'https://img.wongnai.com/p/1920x0/2019/07/11/72a48a40b92d48609c2545a9f585913f.jpg', 'พร้อมขาย']);
+      }
+    }
+  }
+}
+
+function addNewUser(sheet, userId) {
+  sheet.appendRow(['', userId, '', 'registering_phone', new Date()]);
+}
+
+function updateCustomerData(userId, data) {
+  const sheet = SPREADSHEET.getSheetByName(CUSTOMER_SHEET_NAME);
+  const userRow = findRow(sheet, userId, 2);
+  if (userRow) {
+    if (data.phone) sheet.getRange(userRow.row, 1).setValue(String(data.phone)); 
+    if (data.name) sheet.getRange(userRow.row, 3).setValue(data.name);
+    if (data.state) sheet.getRange(userRow.row, 4).setValue(data.state);
+  }
+}
+
+function isPhoneNumberDuplicate(phone) {
+  const sheet = SPREADSHEET.getSheetByName(CUSTOMER_SHEET_NAME);
+  const phoneColumn = sheet.getRange('A2:A').getValues().flat();
+  return phoneColumn.includes(phone);
+}
+
+function findRow(sheet, value, column) {
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i] && data[i][column - 1] == value) {
+      return { row: i + 1, values: data[i] };
+    }
+  }
+  return null;
+}
+
+// -----------------------------------------------------------------------------
+// SECTION 6: LINE MESSAGING API FUNCTIONS
+// -----------------------------------------------------------------------------
+function reply(replyToken, messages) {
+  const payload = JSON.stringify({ replyToken, messages });
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + CHANNEL_ACCESS_TOKEN },
+    payload: payload
+  };
+  UrlFetchApp.fetch(LINE_REPLY_URL, options);
+}
+
+function pushMessage(userId, messages) {
+  const payload = JSON.stringify({ to: userId, messages });
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'Authorization': 'Bearer ' + CHANNEL_ACCESS_TOKEN },
+    payload: payload,
+    muteHttpExceptions: true
+  };
+  UrlFetchApp.fetch(LINE_PUSH_URL, options);
+}
+
+// -----------------------------------------------------------------------------
+// SECTION 7: FLEX MESSAGE TEMPLATES
+// -----------------------------------------------------------------------------
+function createMainMenuFlex(userInfo) { 
+  return { "type": "flex", "altText": "เมนูหลัก", "contents": { "type": "bubble", "body": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": `สวัสดีคุณ ${userInfo.name}`, "weight": "bold", "size": "xl" }, { "type": "text", "text": "เลือกบริการ", "margin": "md" }] }, "footer": { "type": "box", "layout": "vertical", "spacing": "sm", "contents": [{ "type": "button", "style": "primary", "color": "#FF6B6B", "height": "sm", "action": { "type": "message", "label": "🌶️ เมนู/สั่งอาหาร", "text": "เมนู" } }, { "type": "button", "style": "secondary", "height": "sm", "action": { "type": "message", "label": "🛒 ตะกร้าสินค้า", "text": "ดูตะกร้า" } }, { "type": 
+"separator", "margin": "md" }, { "type": "button", "style": "link", "height": "sm", "action": { "type": "message", "label": "จองคิว", "text": "ระบบจองคิว" } }, { "type": "button", "style": "link", "height": "sm", "action": { "type": "message", "label": "เช็คคิว", "text": "เช็คคิว" } }, { "type": "button", "style": "link", "height": "sm", "action": { "type": "message", "label": "ยกเลิกคิว", "text": "ยกเลิกคิว" } }], "flex": 0 } } };
+}
+
+function createQueueInfoFlex(userInfo, currentQueue, ahead, total) { 
+  return { "type": "flex", "altText": "ข้อมูลคิว", "contents": { "type": "bubble", "body": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": "สถานะคิว", "weight": "bold", "size": "xl" }, { "type": "box", "layout": "vertical", "margin": "lg", "spacing": "sm", "contents": [{ "type": "box", "layout": "baseline", "spacing": "sm", "contents": [{ "type": "text", "text": "ชื่อ", "color": "#aaaaaa", "size": "sm", "flex": 1 }, { "type": "text", "text": userInfo.name, "wrap": true, "color": "#666666", "size": "sm", "flex": 3 }] }, { "type": "box", "layout": "baseline", "spacing": "sm", "contents": [{ "type": "text", "text": "คิวของคุณ", "color": "#aaaaaa", "size": "sm", "flex": 1 }, 
+{ "type": "text", "text": `${currentQueue}`, "wrap": true, "color": "#666666", "size": "lg", "weight": "bold", "flex": 3 }] }, { "type": "box", "layout": "baseline", "spacing": "sm", "contents": [{ "type": "text", "text": "รออีก", "color": "#aaaaaa", "size": "sm", "flex": 1 }, { "type": "text", "text": `${ahead} คิว`, "wrap": true, "color": "#666666", "size": "sm", "flex": 3 }] }, { "type": "box", "layout": "baseline", "spacing": "sm", "contents": [{ "type": "text", "text": "คิวทั้งหมด", "color": "#aaaaaa", "size": "sm", "flex": 1 }, { "type": "text", "text": `${total}`, "wrap": true, "color": "#666666", "size": "sm", "flex": 3 }] }] }] }, "footer": { "type": "box", "layout": "vertical", "contents": [{ "type": "button", 
+"action": { "type": "message", "label": "ยกเลิกคิว", "text": "ยกเลิกคิว" }, "style": "primary", "color": "#DC3545" }] } } };
+}
+
+function createMenuFlex() { 
+  const menuSheet = SPREADSHEET.getSheetByName(MENU_SHEET_NAME);
+  let menuData = [];
+  if (menuSheet.getLastRow() > 1) {
+    menuData = menuSheet.getRange(2, 1, menuSheet.getLastRow() - 1, 4).getValues();
+  }
+  const menuBubbles = [];
+  const itemsPerPage = 9;
+  for (let i = 0; i < menuData.length; i += itemsPerPage) {
+    const pageItems = menuData.slice(i, i + itemsPerPage);
+    const itemComponents = pageItems.map(row => {
+      const [itemName, itemPrice, itemImage, status] = row;
+      const isAvailable = status === 'พร้อมขาย';
+      const contentBox = { "type": "box", "layout": "vertical", "flex": 3, "margin": "md", "contents": [{ "type": "text", "text": itemName, "weight": "bold", "size": "md", "wrap": true }, { "type": "text", "text": `ราคา ${itemPrice} บาท`, "size": "sm", "color": "#555555" }] };
+      if (isAvailable) {
+        contentBox.contents.push({ "type": "button", "action": { "type": "postback", "label": "เพิ่มลงตะกร้า", "data": `action=add_to_cart&item=${encodeURIComponent(itemName)}&price=${itemPrice}` }, "style": 
+"primary", "color": "#FF6B6B", "height": "sm", "margin": "md" });
+      } else {
+        contentBox.contents.push({ "type": "text", "text": "❌ สินค้าหมด", "size": "xs", "color": '#DC3545', "margin": "sm" });
+      }
+      return { "type": "box", "layout": "horizontal", "margin": "md", "contents": [{ "type": "image", "url": itemImage ||
+'https://placehold.co/400x400/FF6B6B/FFFFFF?text=Mala', "size": "sm", "aspectRatio": "1:1", "aspectMode": "cover", "flex": 1 }, contentBox], "spacing": "sm", "paddingAll": "sm" };
+    });
+    menuBubbles.push({ "type": "bubble", "header": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": "รายการเมนู", "weight": "bold", "size": "xl" }] }, "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": itemComponents }, "footer": { "type": "box", "layout": "vertical", "contents": [{ "type": "button", "action": { "type": "message", "label": "🛒 ดูตะกร้า", "text": "ดูตะกร้า" }, "style": "secondary" }] } });
+  }
+  if (menuBubbles.length === 0) {
+    return { type: 'text', text: 'ขออภัย ยังไม่มีเมนูในระบบ' };
+  }
+  return { "type": "flex", "altText": "รายการเมนู", "contents": { "type": "carousel", "contents": menuBubbles } };
+}
+
+function createCartFlex(userId) { 
+  const cartSheet = SPREADSHEET.getSheetByName(CART_SHEET_NAME);
+  const data = cartSheet.getDataRange().getValues();
+  const userCartItems = [];
+  let totalPrice = 0;
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === userId) {
+      const [, itemName, quantity, price] = data[i];
+      totalPrice += quantity * price;
+      userCartItems.push({ name: itemName, quantity: quantity, price: price });
+    }
+  }
+  if (userCartItems.length === 0) {
+    return { "type": "flex", "altText": "ตะกร้าสินค้า", "contents": { "type": "bubble", "body": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": "🛒", "align": "center", "size": "xxl" }, { "type": "text", "text": "ตะกร้าของคุณว่างเปล่า", "align": "center", "margin": "md" }, { "type": "button", "action": { "type": "message", "label": "ดูเมนู", "text": "เมนู" }, "style": "primary", "color": "#FF6B6B", "margin": "xl" }] } } };
+  }
+  const itemComponents = userCartItems.map(item => ({ "type": "box", "layout": "horizontal", "contents": [{ "type": "text", "text": `${item.name} (x${item.quantity})`, "flex": 3, "wrap": true }, { "type": "text", "text": `${item.quantity * item.price} บ.`, "align": "end", "flex": 2 }] }));
+  return { "type": "flex", "altText": "ตะกร้าสินค้า", "contents": { "type": "bubble", "size": "giga", "header": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": "🛒 สรุปรายการ", "weight": "bold", "size": "xl" }] }, "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": itemComponents }, "footer": { "type": "box", "layout": "vertical", "spacing": "sm", "contents": [{ "type": "separator" }, { "type": "box", "layout": "horizontal", "margin": "md", "contents": [{ "type": "text", "text": "ยอดรวม", "weight": "bold", "size": "lg", "flex": 3 }, { "type": "text", "text": `${totalPrice} บาท`, "align": "end", "weight": "bold", "size": "lg", "flex": 2 }] }, { "type": "separator", "margin": "lg" }, { "type": "button", 
+"action": { "type": "postback", "label": "✅ ยืนยันคำสั่งซื้อ", "data": "action=confirm_order" }, "style": "primary", "color": "#28A745" }, { "type": "button", "action": { "type": "message", "label": "➕ สั่งเพิ่ม", "text": "เมนู" }, "style": "secondary" }, { "type": "button", "action": { "type": "postback", "label": "❌ ล้างตะกร้า", "data": "action=clear_cart" }, "style": "link", "color": "#AAAAAA" }] } } };
+}
+
+function createOrderConfirmationFlex(orderId, customerName, userCartItems, totalPrice) { 
+  const itemComponents = userCartItems.map(itemString => {
+    const [itemName, quantityPart] = itemString.split(' x');
+    return { "type": "box", "layout": "horizontal", "margin": "sm", "contents": [{ "type": "text", "text": itemName, "flex": 4, "wrap": true, "size": "sm" }, { "type": "text", "text": `x${quantityPart || '1'}`, "flex": 1, "align": "end", "size": "sm", "color": "#555555" }] };
+  });
+  return { "type": "flex", "altText": "ยืนยันออเดอร์", "contents": { "type": "bubble", "size": "giga", "header": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": "✅ รับออเดอร์เรียบร้อย!", "weight": "bold", "size": "xl", "color": "#28A745", "align": "center" }] }, "body": { "type": "box", "layout": "vertical", "spacing": "md", "contents": [{ "type": "box", "layout": "baseline", "spacing": "sm", "contents": [{ "type": "text", "text": "หมายเลข:", "flex": 2, "color": "#aaaaaa", "size": "sm" }, { "type": "text", "text": orderId, "flex": 4, "weight": "bold", "wrap": true, "size": "sm" }] }, { "type": "box", "layout": "baseline", "spacing": "sm", "contents": [{ "type": "text", "text": "ลูกค้า:", "flex": 2, "color": "#aaaaaa", "size": "sm" }, { 
+"type": "text", "text": customerName, "flex": 4, "wrap": true, "size": "sm" }] }, { "type": "separator", "margin": "lg" }, { "type": "text", "text": "รายการ:", "weight": "bold", "margin": "md", "size": "md" }, ...itemComponents, { "type": "separator", "margin": "lg" }, { "type": "box", "layout": "horizontal", "margin": "md", "contents": [{ "type": "text", "text": "ยอดรวมทั้งหมด", "weight": "bold", "size": "lg", "flex": 3 }, { "type": "text", "text": `${totalPrice} บาท`, "align": "end", "weight": "bold", "size": "lg", "flex": 2, "color": "#FF6B6B" }] }] }, "footer": { "type": "box", "layout": "vertical", "contents": [{ "type": "text", "text": "กรุณาชำระเงินและส่งสลิปเพื่อยืนยัน 🙏", "wrap": true, "align": "center", "size": "sm", "color": "#555555" }] } } 
+};
+}
+
+// -----------------------------------------------------------------------------
+// SECTION 8: WEB APP (ADMIN) BACKEND FUNCTIONS
+// -----------------------------------------------------------------------------
+function getMenuItems() {
+  const sheet = SPREADSHEET.getSheetByName(MENU_SHEET_NAME);
+  if (sheet.getLastRow() <= 1) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 4).getValues();
+}
+
+function addMenuItem(item) {
+  try {
+    SPREADSHEET.getSheetByName(MENU_SHEET_NAME).appendRow([item.name, item.price, item.imageUrl, item.status]);
+    return { success: true, message: 'เพิ่มเมนูสำเร็จ' };
+  } catch (e) {
+    return { success: false, message: 'Error: ' + e.message };
+  }
+}
+
+function updateMenuItem(index, item) {
+  try {
+    SPREADSHEET.getSheetByName(MENU_SHEET_NAME).getRange(parseInt(index) + 2, 1, 1, 4).setValues([[item.name, item.price, item.imageUrl, item.status]]);
+    return { success: true, message: 'อัปเดตเมนูสำเร็จ' };
+  } catch (e) {
+    return { success: false, message: 'Error: ' + e.message };
+  }
+}
+
+function deleteMenuItem(index) {
+  try {
+    SPREADSHEET.getSheetByName(MENU_SHEET_NAME).deleteRow(parseInt(index) + 2);
+    return { success: true, message: 'ลบเมนูสำเร็จ' };
+  } catch (e) {
+    return { success: false, message: 'Error: ' + e.message };
+  }
+}
+
+function getCustomers() {
+  const sheet = SPREADSHEET.getSheetByName(CUSTOMER_SHEET_NAME);
+  if (sheet.getLastRow() <= 1) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 5).getValues();
+}
+
+function getQueue() {
+  const sheet = SPREADSHEET.getSheetByName(QUEUE_SHEET_NAME);
+  if (sheet.getLastRow() <= 1) return [];
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 3).getValues();
+}
+
+/**
+ * ⭐ FINAL ROBUST VERSION ⭐
+ * This function now handles potential Date object errors in BOTH TotalPrice and Timestamp columns.
+ */
+function getOrders() {
+  const sheet = SPREADSHEET.getSheetByName(ORDERS_SHEET_NAME);
+  const lastRow = sheet.getLastRow();
+  if (lastRow <= 1) return [];
+
+  const statusColumnValues = sheet.getRange(2, 8, lastRow - 1, 1).getValues();
+  const pendingOrders = [];
+  const allowedStatuses = ['pending', 'รอดำเนินการ', 'ยังไม่เสร็จ', 'Pending', 'waiting'];
+
+  for (let i = 0; i < statusColumnValues.length; i++) {
+    const status = statusColumnValues[i][0];
+    if (status) {
+      const normalized = status.toString().trim().toLowerCase();
+      if (allowedStatuses.includes(normalized)) {
+        let rowData = sheet.getRange(i + 2, 1, 1, 8).getValues()[0];
+        
+        // --- NEW ROBUST FIX ---
+        // Check TotalPrice (column F, index 5). If it's a Date, show an error string to prevent crashing.
+        if (rowData[5] instanceof Date) {
+          rowData[5] = "ข้อมูลราคาผิดพลาด"; // แสดงผลเป็นข้อความแทน
+        }
+        
+        // Check Timestamp (column G, index 6). If it's a Date, convert it to a string.
+        if (rowData[6] instanceof Date) {
+          rowData[6] = rowData[6].toISOString();
+        }
+        // --- END OF FIX ---
+        
+        pendingOrders.push(rowData);
+      }
+    }
+  }
+
+  Logger.log('Data being returned to web app: ' + JSON.stringify(pendingOrders));
+  return pendingOrders;
+}
+
+function completeOrder(orderId, userId) {
+  try {
+    const sheet = SPREADSHEET.getSheetByName(ORDERS_SHEET_NAME);
+    const orderRow = findRow(sheet, orderId, 1);
+    if (orderRow) {
+      sheet.getRange(orderRow.row, 8).setValue('Completed');
+      const customerName = orderRow.values[2];
+      const message = [{
+        type: 'text',
+        text: `คุณ ${customerName} 👨‍🍳\nออเดอร์ #${orderId} เสร็จเรียบร้อยแล้วครับ!\n\nขอบคุณที่ใช้บริการครับ 🙏`
+      }];
+      pushMessage(userId, message);
+      return { success: true, message: 'ออเดอร์เสร็จสิ้นและแจ้งเตือนลูกค้าแล้ว' };
+    } else {
+      return { success: false, message: 'ไม่พบออเดอร์' };
+    }
+  } catch (e) {
+    return { success: false, message: 'Error: ' + e.message };
+  }
+}
