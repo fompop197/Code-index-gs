@@ -1,0 +1,282 @@
+// ===============================================================
+//                       *** CONFIGURATION ***
+//  กรุณาใส่ ID ของ Spreadsheet และ Folder ของคุณที่นี่
+// ===============================================================
+const SPREADSHEET_ID = "YOUR_SPREADSHEET_ID"; // <--- ใส่ ID ของ Google Sheet ของคุณ
+const FOLDER_ID = "YOUR_FOLDER_ID";          // <--- ใส่ ID ของ Google Drive Folder ของคุณ (คงไว้ตามที่คุณต้องการ)
+
+// ===============================================================
+//                     *** GLOBAL VARIABLES ***
+// ===============================================================
+const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+// ===============================================================
+//                       *** MAIN FUNCTION ***
+// ===============================================================
+/**
+ * Serves the HTML file when the web app URL is accessed.
+ */
+function doGet() {
+  return HtmlService.createTemplateFromFile('index').evaluate()
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+// ===============================================================
+//                *** AUTHENTICATION & PASSWORD MGMT ***
+// ===============================================================
+
+/**
+ * Verifies if a given password exists in the 'Passwords' sheet.
+ * @param {string} password The password to verify.
+ * @returns {boolean} True if the password is valid, false otherwise.
+ */
+function verifyPassword(password) {
+  try {
+    const passwords = getPasswords();
+    return passwords.includes(password);
+  } catch (e) {
+    Logger.log("Error verifying password: " + e.message);
+    return false;
+  }
+}
+
+/**
+ * Retrieves a list of all valid passwords from the 'Passwords' sheet.
+ * @returns {string[]} An array of passwords.
+ */
+function getPasswords() {
+  const sheet = ss.getSheetByName('Passwords');
+  if (!sheet) {
+    const newSheet = ss.insertSheet('Passwords');
+    newSheet.appendRow(['password']);
+    newSheet.appendRow(['admin']); // Default password
+    return ['admin'];
+  };
+  const data = sheet.getRange("A2:A").getValues();
+  return data.map(row => row[0]).filter(String);
+}
+
+/**
+ * Adds a new password to the 'Passwords' sheet.
+ * @param {string} newPassword The new password to add.
+ * @returns {string[]} The updated list of all passwords.
+ */
+function addPassword(newPassword) {
+  const sheet = ss.getSheetByName('Passwords') || ss.insertSheet('Passwords');
+  if (sheet.getLastRow() === 0) sheet.appendRow(['password']);
+  sheet.appendRow([newPassword]);
+  return getPasswords();
+}
+
+/**
+ * Removes a specified password from the 'Passwords' sheet.
+ * @param {string} passwordToRemove The password to be removed.
+ * @returns {string[]} The updated list of all passwords.
+ */
+function removePassword(passwordToRemove) {
+  const sheet = ss.getSheetByName('Passwords');
+  if (!sheet) return [];
+
+  const passwords = getPasswords();
+  if (passwords.length <= 1) {
+    // Prevent deleting the last password
+    return passwords;
+  }
+
+  const data = sheet.getDataRange().getValues();
+  for (let i = data.length - 1; i >= 1; i--) { 
+    if (data[i][0] === passwordToRemove) {
+      sheet.deleteRow(i + 1);
+    }
+  }
+  return getPasswords();
+}
+
+
+// ===============================================================
+//                 *** CORE DATA FUNCTIONS ***
+// ===============================================================
+
+/**
+ * Retrieves all data from a specified sheet and converts it to an array of objects.
+ * @param {string} sheetName The name of the sheet to get data from.
+ * @returns {Object[]} An array of objects representing the sheet data.
+ */
+function getSheetData(sheetName) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    // If sheet does not exist, create it. This is useful for first-time setup.
+    sheet = ss.insertSheet(sheetName);
+    // You might want to add default headers here if needed
+    if (sheetName === 'contactSubmissions' && sheet.getLastRow() < 1) {
+      sheet.appendRow(['id', 'timestamp', 'firstName', 'lastName', 'email', 'message']);
+    }
+  }
+  if (sheet.getLastRow() < 2) return []; // No data rows
+  
+  const data = sheet.getDataRange().getValues();
+  const headers = data.shift() || [];
+  return data.map(row => {
+    let obj = {};
+    headers.forEach((header, i) => {
+      // Handle special cases like 'images' for manualList which might be a stringified array
+      if(header === 'images' && typeof row[i] === 'string' && row[i].startsWith('[')) {
+        try {
+          obj[header] = JSON.parse(row[i]);
+        } catch (e) {
+          obj[header] = row[i].split(',').map(item => item.trim()); // Fallback parsing
+        }
+      } else {
+        obj[header] = row[i];
+      }
+    });
+    return obj;
+  });
+}
+
+/**
+ * Overwrites all data in a specified sheet with new data.
+ * @param {string} sheetName The name of the sheet to save data to.
+ * @param {Object[]} data An array of objects to save.
+ */
+function saveData(sheetName, data) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+  }
+  sheet.clear();
+  if (data.length === 0) return; 
+  
+  const headers = Object.keys(data[0]);
+  const values = data.map(obj => headers.map(header => {
+      // Stringify arrays before saving
+      return Array.isArray(obj[header]) ? JSON.stringify(obj[header]) : obj[header];
+  }));
+  
+  sheet.appendRow(headers);
+  if (values.length > 0) {
+    sheet.getRange(2, 1, values.length, headers.length).setValues(values);
+  }
+}
+
+/**
+ * Fetches the initial data needed to render the public-facing website.
+ * @returns {Object} An object containing all initial data.
+ */
+function getInitialData() {
+  const properties = PropertiesService.getScriptProperties();
+  return {
+    websiteName: properties.getProperty('websiteName') || 'เว็บไซต์เพื่อการศึกษา',
+    homeImages: getSheetData('homeImages'),
+    newsList: getSheetData('newsList').sort((a,b) => b.id - a.id),
+    manualList: getSheetData('manualList'),
+    contactList: getSheetData('contactList'),
+    contactSubmissions: getSheetData('contactSubmissions')
+  };
+}
+
+/**
+ * Updates the website name stored in Script Properties.
+ * @param {string} name The new name for the website.
+ * @returns {string} The new name.
+ */
+function updateWebsiteName(name) {
+  PropertiesService.getScriptProperties().setProperty('websiteName', name);
+  return name;
+}
+
+// ===============================================================
+//           *** GENERIC CRUD (CREATE, READ, UPDATE, DELETE) ***
+// ===============================================================
+
+function addData(sheetName, item) {
+  const data = getSheetData(sheetName);
+  data.push(item);
+  saveData(sheetName, data);
+  return getSheetData(sheetName);
+}
+
+function removeData(sheetName, id) {
+  let data = getSheetData(sheetName);
+  data = data.filter(item => String(item.id) !== String(id));
+  saveData(sheetName, data);
+  return getSheetData(sheetName);
+}
+
+// ===============================================================
+//                *** SPECIFIC DATA HANDLERS ***
+// ===============================================================
+
+function addHomeImage(image) { return addData('homeImages', image); }
+function removeHomeImage(id) { return removeData('homeImages', id); }
+
+function addNews(news) {
+  const data = addData('newsList', news);
+  return data.sort((a,b) => b.id - a.id);
+}
+function removeNews(id) { 
+  const data = removeData('newsList', id);
+  return data.sort((a,b) => b.id - a.id);
+}
+
+function addManual(manual) { return addData('manualList', manual); }
+function removeManual(id) { return removeData('manualList', id); }
+
+function addContact(contact) { return addData('contactList', contact); }
+function removeContact(id) { return removeData('contactList', id); }
+
+
+// ===============================================================
+//           *** NEW: CONTACT FORM SUBMISSION HANDLERS ***
+// ===============================================================
+
+/**
+ * Receives form data from the client and appends it to the 'contactSubmissions' sheet.
+ * @param {Object} formData The contact form data object.
+ * @returns {Object} A success response.
+ */
+function submitContactForm(formData) {
+  const sheetName = 'contactSubmissions';
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(['id', 'timestamp', 'firstName', 'lastName', 'email', 'message']);
+  }
+  sheet.appendRow([
+    formData.id,
+    formData.timestamp,
+    formData.firstName,
+    formData.lastName,
+    formData.email,
+    formData.message
+  ]);
+  return { status: 'success' };
+}
+
+/**
+ * Deletes a contact form submission by its ID.
+ * @param {string|number} id The ID of the submission to delete.
+ * @returns {Object[]} The updated list of submissions.
+ */
+function deleteContactSubmission(id) {
+  return removeData('contactSubmissions', id);
+}
+
+/**
+ * Updates a contact form submission.
+ * @param {Object} submission The updated submission object.
+ * @returns {Object[]} The updated list of all submissions.
+ */
+function updateContactSubmission(submission) {
+  const sheetName = 'contactSubmissions';
+  let data = getSheetData(sheetName);
+  const index = data.findIndex(item => String(item.id) === String(submission.id));
+  
+  if (index !== -1) {
+    data[index] = submission;
+    saveData(sheetName, data);
+  }
+  
+  return getSheetData(sheetName);
+}
