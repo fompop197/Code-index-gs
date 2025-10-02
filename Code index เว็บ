@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เว็บไซต์เพื่อการศึกษา</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Sarabun', sans-serif; }
+        .hover-lift { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+        .hover-lift:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .collapsible-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .collapsible-content.open { max-height: 2000px; }
+        #admin-sidebar { transition: transform 0.3s ease-in-out; }
+        #admin-main-content { transition: margin-left 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <div id="public-website">
+        <nav class="bg-white shadow-md sticky top-0 z-40">
+            <div class="container mx-auto px-4">
+                <div class="flex justify-between items-center py-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white"><i class="fa-solid fa-graduation-cap"></i></div>
+                        <h1 id="websiteName" class="text-xl font-bold text-gray-800">เว็บไซต์เพื่อการศึกษา</h1>
+                    </div>
+                    <div class="hidden md:flex items-center space-x-2">
+                        <button onclick="showSection('home')" class="nav-btn px-4 py-2 text-gray-600 hover:text-blue-600">หน้าแรก</button>
+                        <button onclick="showSection('news')" class="nav-btn px-4 py-2 text-gray-600 hover:text-blue-600">ข่าวสาร</button>
+                        <button onclick="showSection('manual')" class="nav-btn px-4 py-2 text-gray-600 hover:text-blue-600">คู่มือ</button>
+                        <button onclick="showSection('contact')" class="nav-btn px-4 py-2 text-gray-600 hover:text-blue-600">ติดต่อเรา</button>
+                        <a href="#" class="px-4 py-2 rounded-lg font-medium border border-gray-400 text-gray-700 hover:bg-gray-100 transition-colors">ลงทะเบียน</a>
+                        <button onclick="openLoginModal()" class="px-4 py-2 rounded-lg font-medium border border-blue-600 text-blue-600 hover:bg-blue-50 transition-colors">เข้าสู่ระบบ</button>
+                    </div>
+                    <div class="md:hidden"><button id="mobile-menu-button" class="text-gray-800"><i class="fas fa-bars fa-lg"></i></button></div>
+                </div>
+            </div>
+            <div id="mobile-menu" class="hidden md:hidden p-2 space-y-1">
+                <button onclick="showSection('home')" class="block w-full text-left p-2 rounded-md text-gray-700 hover:bg-blue-50">หน้าแรก</button>
+                <button onclick="showSection('news')" class="block w-full text-left p-2 rounded-md text-gray-700 hover:bg-blue-50">ข่าวสาร</button>
+                <button onclick="showSection('manual')" class="block w-full text-left p-2 rounded-md text-gray-700 hover:bg-blue-50">คู่มือ</button>
+                <button onclick="showSection('contact')" class="block w-full text-left p-2 rounded-md text-gray-700 hover:bg-blue-50">ติดต่อเรา</button>
+                <a href="#" class="block w-full text-center mt-2 p-2 rounded-md text-gray-700 border border-gray-400 hover:bg-gray-100">ลงทะเบียน</a>
+                <button onclick="openLoginModal()" class="block w-full text-center mt-1 p-2 rounded-md text-blue-600 border border-blue-600 hover:bg-blue-50">เข้าสู่ระบบ</button>
+            </div>
+        </nav>
+        
+        <main class="container mx-auto p-4 md:p-6">
+            <div id="homeSection" class="section">
+                <div class="bg-blue-600 text-white rounded-lg shadow-xl p-8 md:p-12 text-center mb-12">
+                    <h2 class="text-4xl md:text-5xl font-bold mb-4">เรียนรู้ได้ทุกที่ ทุกเวลา</h2>
+                    <p class="text-blue-200 text-lg mb-6">แหล่งรวมความรู้และสื่อการสอนที่ทันสมัยที่สุด</p>
+                    <button onclick="showSection('news')" class="bg-white text-blue-600 font-bold px-8 py-3 rounded-full hover:bg-gray-100 transition-transform hover:scale-105">ดูข่าวสารล่าสุด</button>
+                </div>
+                <div id="homeImages" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"></div>
+            </div>
+            <div id="newsSection" class="section hidden">
+                <div class="mb-8"><h2 class="text-3xl font-bold text-gray-800">ข่าวสารและกิจกรรม</h2></div>
+                <div id="newsList" class="space-y-6"></div>
+            </div>
+            <div id="manualSection" class="section hidden">
+                <h2 class="text-3xl font-bold text-gray-800 text-center mb-8">คู่มือการใช้งาน</h2>
+                <div id="manualList" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+            </div>
+             <div id="contactSection" class="section hidden">
+                <h2 class="text-3xl font-bold text-gray-800 text-center mb-10">ติดต่อเรา</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-10">
+                    <div class="lg:col-span-3 bg-white p-8 rounded-lg shadow-md">
+                        <h3 class="text-2xl font-bold mb-6 text-gray-800">ส่งข้อความถึงเรา</h3>
+                        <form id="contactForm" class="space-y-5">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                <div>
+                                    <label for="firstName" class="block text-sm font-medium text-gray-700">ชื่อจริง</label>
+                                    <input type="text" id="firstName" name="firstName" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label for="lastName" class="block text-sm font-medium text-gray-700">นามสกุล</label>
+                                    <input type="text" id="lastName" name="lastName" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500">
+                                </div>
+                            </div>
+                            <div>
+                                <label for="email" class="block text-sm font-medium text-gray-700">อีเมล</label>
+                                <input type="email" id="email" name="email" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label for="message" class="block text-sm font-medium text-gray-700">ข้อความ</label>
+                                <textarea id="message" name="message" rows="4" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                            </div>
+                            <div>
+                                <button type="submit" id="contactSubmitBtn" class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">ส่งข้อความ</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="lg:col-span-2">
+                         <div class="bg-white p-6 rounded-lg shadow-md mb-6 hover-lift">
+                            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-4 text-lg text-gray-700 hover:text-blue-600 transition-colors">
+                               <i class="fab fa-facebook-square text-blue-600 text-4xl"></i>
+                               <span class="font-semibold">ติดตามเราบน Facebook</span>
+                            </a>
+                        </div>
+                        <div id="contactList" class="space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="admin-layout" class="hidden">
+        <aside id="admin-sidebar" class="bg-gray-800 text-gray-200 w-64 min-h-screen fixed top-0 left-0 z-50 flex flex-col">
+            <div class="flex items-center justify-center p-4 bg-gray-900">
+                <h1 class="text-xl font-bold text-white">ระบบจัดการ</h1>
+            </div>
+            <nav class="flex-1 p-2 space-y-2">
+                <button onclick="showAdminPanel('homeAdmin')" class="w-full text-left flex items-center p-3 rounded-lg hover:bg-gray-700"><i class="fas fa-home w-6 mr-3"></i>จัดการหน้าแรก</button>
+                <button onclick="showAdminPanel('newsAdmin')" class="w-full text-left flex items-center p-3 rounded-lg hover:bg-gray-700"><i class="fas fa-newspaper w-6 mr-3"></i>จัดการข่าวสาร</button>
+                <button onclick="showAdminPanel('manualAdmin')" class="w-full text-left flex items-center p-3 rounded-lg hover:bg-gray-700"><i class="fas fa-book w-6 mr-3"></i>จัดการคู่มือ</button>
+                <button onclick="showAdminPanel('contactAdmin')" class="w-full text-left flex items-center p-3 rounded-lg hover:bg-gray-700"><i class="fas fa-map-marker-alt w-6 mr-3"></i>จัดการที่อยู่ติดต่อ</button>
+                <button onclick="showAdminPanel('submissionsAdmin')" class="w-full text-left flex items-center p-3 rounded-lg hover:bg-gray-700"><i class="fas fa-envelope-open-text w-6 mr-3"></i>จัดการข้อความติดต่อ</button>
+                <button onclick="showAdminPanel('passwordAdmin')" class="w-full text-left flex items-center p-3 rounded-lg hover:bg-gray-700"><i class="fas fa-key w-6 mr-3"></i>จัดการรหัสผ่าน</button>
+            </nav>
+            <div class="p-2 border-t border-gray-700">
+                <button onclick="logout()" class="w-full text-left flex items-center p-3 rounded-lg hover:bg-red-500"><i class="fas fa-sign-out-alt w-6 mr-3"></i>ออกจากระบบ</button>
+            </div>
+        </aside>
+
+        <div id="admin-main-content" class="md:ml-64 bg-gray-100 min-h-screen">
+            <header class="bg-white shadow-md p-4 flex items-center">
+                <button id="sidebar-toggle" class="text-gray-700 md:hidden"><i class="fas fa-bars fa-lg"></i></button>
+                <h2 class="text-xl font-semibold ml-4">Dashboard</h2>
+            </header>
+            <div class="p-6">
+                <div id="homeAdminPanel" class="admin-panel-content"></div>
+                <div id="newsAdminPanel" class="admin-panel-content hidden"></div>
+                <div id="manualAdminPanel" class="admin-panel-content hidden"></div>
+                <div id="contactAdminPanel" class="admin-panel-content hidden"></div>
+                <div id="submissionsAdminPanel" class="admin-panel-content hidden"></div>
+                <div id="passwordAdminPanel" class="admin-panel-content hidden"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loginModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-sm p-8">
+            <h2 class="text-2xl font-bold text-center mb-2">เข้าสู่ระบบจัดการ</h2>
+            <p class="text-center text-gray-500 mb-6">กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ</p>
+            <input type="password" id="passwordInput" class="w-full border-2 border-gray-300 p-3 rounded-lg mb-4 focus:border-blue-500 focus:outline-none" placeholder="รหัสผ่าน">
+            <p id="loginError" class="text-red-500 text-sm mb-4 h-5"></p>
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700">เข้าสู่ระบบ</button>
+            <button onclick="closeLoginModal()" class="w-full mt-2 text-gray-600 py-2 rounded-lg hover:bg-gray-100">ยกเลิก</button>
+        </div>
+    </div>
+    <div id="newsModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4"></div>
+    <div id="editSubmissionModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4"></div>
+
+    <script>
+        let homeImages = [], newsList = [], manualList = [], contactList = [], contactSubmissions = [], currentManualImages = [], passwords = [];
+        
+        // --- EVENT LISTENERS ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('mobile-menu-button').addEventListener('click', () => document.getElementById('mobile-menu').classList.toggle('hidden'));
+            document.getElementById('sidebar-toggle').addEventListener('click', () => {
+                document.getElementById('admin-sidebar').classList.toggle('-translate-x-full');
+            });
+            document.getElementById('contactForm').addEventListener('submit', handleContactFormSubmit);
+            
+            google.script.run.withSuccessHandler(data => {
+                homeImages = data.homeImages || [];
+                newsList = data.newsList || [];
+                manualList = data.manualList || [];
+                contactList = data.contactList || [];
+                contactSubmissions = data.contactSubmissions || [];
+                document.getElementById('websiteName').textContent = data.websiteName || 'เว็บไซต์เพื่อการศึกษา';
+                renderAllContent();
+                buildAdminPanels();
+                renderAllAdminLists();
+            }).getInitialData();
+
+            showSection('home');
+        });
+
+        // --- AUTHENTICATION ---
+        function openLoginModal() { document.getElementById('loginModal').classList.remove('hidden'); document.getElementById('passwordInput').focus(); }
+        function closeLoginModal() { document.getElementById('loginModal').classList.add('hidden'); document.getElementById('loginError').textContent = ''; document.getElementById('passwordInput').value = ''; }
+        function handleLogin() {
+            const password = document.getElementById('passwordInput').value;
+            const errorP = document.getElementById('loginError');
+            if (!password) { errorP.textContent = 'กรุณากรอกรหัสผ่าน'; return; }
+            errorP.textContent = 'กำลังตรวจสอบ...';
+            google.script.run.withSuccessHandler(isValid => {
+                if (isValid) {
+                    document.getElementById('public-website').classList.add('hidden');
+                    document.getElementById('admin-layout').classList.remove('hidden');
+                    closeLoginModal();
+                    showAdminPanel('homeAdmin');
+                } else {
+                    errorP.textContent = 'รหัสผ่านไม่ถูกต้อง!';
+                }
+            }).verifyPassword(password);
+        }
+        function logout() {
+            document.getElementById('admin-layout').classList.add('hidden');
+            document.getElementById('public-website').classList.remove('hidden');
+            showSection('home');
+        }
+
+        // --- NAVIGATION ---
+        function showSection(sectionName) {
+            document.querySelectorAll('#public-website .section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(sectionName + 'Section').classList.remove('hidden');
+            document.getElementById('mobile-menu').classList.add('hidden');
+        }
+        function showAdminPanel(panelName) {
+            document.querySelectorAll('.admin-panel-content').forEach(p => p.classList.add('hidden'));
+            document.getElementById(panelName + 'Panel').classList.remove('hidden');
+            if (panelName === 'passwordAdmin') getAndRenderPasswords();
+             if (window.innerWidth < 768) {
+                document.getElementById('admin-sidebar').classList.add('-translate-x-full');
+            }
+        }
+
+        // --- RENDER PUBLIC CONTENT ---
+        function renderAllContent(){
+            renderHomeImages();
+            renderNews();
+            renderManuals();
+            renderContacts();
+        }
+        function renderHomeImages() {
+            const container = document.getElementById('homeImages');
+            container.innerHTML = homeImages.map(image => {
+                const escapedTitle = (image.title || '').replace(/'/g, "\\'");
+                const escapedDescription = (image.description || '').replace(/'/g, "\\'").replace(/\n/g, '\\n');
+                
+                return `
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden hover-lift group flex flex-col">
+                    <img src="${image.url}" alt="${image.title}" class="w-full h-64 object-contain bg-gray-100 group-hover:scale-105 transition-transform duration-300">
+                    <div class="p-6 flex flex-col flex-grow">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">${image.title}</h3>
+                        <p class="text-gray-600 mb-4 flex-grow">${(image.description || '').substring(0, 120)}${image.description && image.description.length > 120 ? '...' : ''}</p>
+                        <button onclick="showNewsDetail({ id: ${image.id}, title: '${escapedTitle}', detail: '${escapedDescription}', image: '${image.url}' })" class="text-blue-600 font-semibold hover:underline self-start mt-auto">รายละเอียด &rarr;</button>
+                    </div>
+                </div>`;
+            }).join('') || '<p>ไม่มีรูปภาพในหน้าแรก</p>';
+        }
+        function renderNews() {
+            const container = document.getElementById('newsList');
+            container.innerHTML = newsList.map(news => `
+                <div class="bg-white rounded-lg shadow-md p-5 hover-lift flex flex-col sm:flex-row items-start gap-6">
+                    ${news.image ? `<img src="${news.image}" class="w-full sm:w-60 h-40 object-contain bg-gray-100 rounded-md flex-shrink-0">` : ''}
+                    <div class="flex-1">
+                       <p class="text-sm text-gray-500">${new Date(news.id).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                       <h4 class="text-xl font-semibold text-gray-800 mt-1">${news.title}</h4>
+                       <p class="text-gray-600 mt-2">${news.detail.substring(0, 150)}...</p>
+                       <button onclick="showNewsDetail(${news.id})" class="text-blue-600 font-semibold mt-3 hover:underline">อ่านเพิ่มเติม &rarr;</button>
+                    </div>
+                </div>`).join('') || '<p>ยังไม่มีข่าวสาร</p>';
+        }
+        function renderManuals() {
+            const container = document.getElementById('manualList');
+            container.innerHTML = manualList.map(manual => `
+                <div class="bg-white rounded-lg shadow-md p-5 hover-lift">
+                    <div class="flex justify-between items-center cursor-pointer" onclick="toggleContent('manualContent-${manual.id}', this)">
+                        <div>
+                            <i class="fas fa-book-open text-blue-500 mr-3"></i>
+                            <h3 class="text-xl font-semibold text-gray-800 inline-block">${manual.title}</h3>
+                        </div>
+                        <i class="fas fa-chevron-down transform transition-transform"></i>
+                    </div>
+                    <div id="manualContent-${manual.id}" class="collapsible-content mt-4 pt-4 border-t space-y-4">
+                        ${manual.images.map((image, index) => `
+                            <div class="border rounded-md p-3 bg-gray-50">
+                                <div class="flex justify-between items-center mb-2">
+                                    <p class="font-medium text-gray-700">หน้า ${index + 1}</p>
+                                    <button onclick="copyToClipboard('${image}', this)" class="text-sm bg-gray-200 text-gray-700 px-3 py-1 rounded-md hover:bg-gray-300 transition-colors">
+                                        <i class="fas fa-copy mr-1"></i> คัดลอกลิงก์
+                                    </button>
+                                </div>
+                                <img src="${image}" alt="หน้า ${index + 1}" class="w-full h-auto rounded-md shadow-sm">
+                            </div>`).join('')}
+                    </div>
+                </div>`).join('') || '<p>ยังไม่มีคู่มือ</p>';
+        }
+        function renderContacts() {
+            const container = document.getElementById('contactList');
+            container.innerHTML = contactList.map(contact => `
+                <div class="bg-white rounded-lg shadow-md p-6 text-center hover-lift">
+                    <div class="text-blue-500 text-5xl mb-3"><i class="fas fa-map-marker-alt"></i></div>
+                    <h3 class="text-xl font-bold text-gray-800">${contact.province}</h3>
+                    <p class="text-gray-500">${contact.district}, ${contact.subDistrict}</p>
+                    <p class="text-gray-600 mt-2 text-sm">${contact.description}</p>
+                </div>`).join('') || '<p>ยังไม่มีข้อมูลติดต่อ</p>';
+        }
+
+        // --- ADMIN PANEL MANAGEMENT ---
+        function buildAdminPanels() {
+             document.getElementById('homeAdminPanel').innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-2xl font-bold mb-6">จัดการหน้าแรก</h3>
+                    <div class="space-y-4">
+                        <div><label class="font-medium">ชื่อเว็บไซต์</label><input type="text" id="websiteNameInput" class="w-full border p-2 rounded-md mt-1" value="${document.getElementById('websiteName').textContent}"><button onclick="updateWebsiteName()" class="bg-blue-500 text-white px-4 py-2 rounded-md mt-2">บันทึกชื่อ</button></div>
+                        <div><label class="font-medium">หัวข้อรูปภาพ</label><input type="text" id="imageTitle" class="w-full border p-2 rounded-md mt-1"></div>
+                        <div><label class="font-medium">คำอธิบาย (สำหรับปุ่ม 'รายละเอียด')</label><textarea id="imageDescription" class="w-full border p-2 rounded-md mt-1 h-24"></textarea></div>
+                        <div><label class="font-medium">ลิงก์รูปภาพ</label><input type="url" id="imageUrl" class="w-full border p-2 rounded-md mt-1"></div>
+                        <button onclick="addHomeImage()" class="bg-green-500 text-white px-4 py-2 rounded-md">เพิ่มรูปภาพ</button>
+                    </div>
+                    <h4 class="text-xl font-bold mt-8 mb-4">รูปภาพที่เพิ่มแล้ว</h4>
+                    <div id="homeImagesList" class="space-y-2"></div>
+                </div>`;
+
+            document.getElementById('newsAdminPanel').innerHTML = `<div class="bg-white p-6 rounded-lg shadow-md"><h3 class="text-2xl font-bold mb-6">จัดการข่าวสาร</h3><div class="space-y-4"><div><label class="font-medium">ชื่อข่าว</label><input type="text" id="newsTitle" class="w-full border p-2 rounded-md mt-1"></div><div><label class="font-medium">รายละเอียด</label><textarea id="newsDetail" class="w-full border p-2 rounded-md mt-1 h-24"></textarea></div><div><label class="font-medium">ลิงก์รูปภาพ</label><input type="url" id="newsImage" class="w-full border p-2 rounded-md mt-1"></div><button onclick="addNews()" class="bg-green-500 text-white px-4 py-2 rounded-md">เพิ่มข่าว</button></div><h4 class="text-xl font-bold mt-8 mb-4">ข่าวที่เพิ่มแล้ว</h4><div id="newsAdminList" class="space-y-2"></div></div>`;
+            
+            document.getElementById('manualAdminPanel').innerHTML = `<div class="bg-white p-6 rounded-lg shadow-md"><h3 class="text-2xl font-bold mb-6">จัดการคู่มือ</h3><div class="space-y-4"><div><label class="font-medium">ชื่อคู่มือ</label><input type="text" id="manualTitle" class="w-full border p-2 rounded-md mt-1"></div><div><label class="font-medium">ลิงก์รูปภาพ</label><div class="flex gap-2"><input type="url" id="manualImageUrl" class="w-full border p-2 rounded-md"><button onclick="addManualImage()" class="bg-blue-500 text-white px-4 py-2 rounded-md">เพิ่ม</button></div></div><div id="manualImages" class="space-y-1"></div><button onclick="addManual()" class="bg-green-500 text-white px-4 py-2 rounded-md">บันทึกคู่มือ</button></div><h4 class="text-xl font-bold mt-8 mb-4">คู่มือที่เพิ่มแล้ว</h4><div id="manualAdminList" class="space-y-2"></div></div>`;
+            
+            document.getElementById('contactAdminPanel').innerHTML = `<div class="bg-white p-6 rounded-lg shadow-md"><h3 class="text-2xl font-bold mb-6">จัดการที่อยู่ติดต่อ</h3><div class="space-y-4"><div><label class="font-medium">จังหวัด</label><input type="text" id="contactProvince" class="w-full border p-2 rounded-md mt-1"></div><div><label class="font-medium">อำเภอ</label><input type="text" id="contactDistrict" class="w-full border p-2 rounded-md mt-1"></div><div><label class="font-medium">ตำบล</label><input type="text" id="contactSubDistrict" class="w-full border p-2 rounded-md mt-1"></div><div><label class="font-medium">คำอธิบาย</label><textarea id="contactDescription" class="w-full border p-2 rounded-md mt-1 h-24"></textarea></div><button onclick="addContact()" class="bg-green-500 text-white px-4 py-2 rounded-md">เพิ่มข้อมูล</button></div><h4 class="text-xl font-bold mt-8 mb-4">ข้อมูลที่เพิ่มแล้ว</h4><div id="contactAdminList" class="space-y-2"></div></div>`;
+
+            document.getElementById('submissionsAdminPanel').innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-2xl font-bold mb-6">จัดการข้อความติดต่อ</h3>
+                    <div id="submissionsList" class="space-y-4"></div>
+                </div>`;
+
+            document.getElementById('passwordAdminPanel').innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <h3 class="text-2xl font-bold mb-6">จัดการรหัสผ่าน</h3>
+                    <div class="flex gap-2 mb-6">
+                        <input type="text" id="newPasswordInput" class="w-full border p-2 rounded-md" placeholder="เพิ่มรหัสผ่านใหม่">
+                        <button onclick="handleAddPassword()" class="bg-green-500 text-white px-4 py-2 rounded-md whitespace-nowrap">เพิ่มรหัส</button>
+                    </div>
+                    <h4 class="text-xl font-bold mt-8 mb-4">รหัสผ่านทั้งหมด</h4>
+                    <div id="passwordList" class="space-y-2"></div>
+                </div>`;
+        }
+
+        // --- CONTACT FORM SUBMISSION ---
+        function handleContactFormSubmit(event) {
+            event.preventDefault();
+            const form = event.target;
+            const formData = {
+                id: Date.now(),
+                firstName: form.elements.firstName.value,
+                lastName: form.elements.lastName.value,
+                email: form.elements.email.value,
+                message: form.elements.message.value,
+                timestamp: new Date().toISOString()
+            };
+            
+            const submitBtn = document.getElementById('contactSubmitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'กำลังส่ง...';
+
+            google.script.run.withSuccessHandler(response => {
+                alert('ส่งข้อความเรียบร้อยแล้ว!');
+                form.reset();
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'ส่งข้อความ';
+            }).submitContactForm(formData);
+        }
+        
+        // --- DATA HANDLERS ---
+        function addHomeImage() {
+            const title = document.getElementById('imageTitle').value;
+            const url = document.getElementById('imageUrl').value;
+            const description = document.getElementById('imageDescription').value;
+            if (!title || !url) return alert('กรุณากรอกข้อมูลให้ครบ');
+            const newImage = { id: Date.now(), title, url, description };
+            google.script.run.withSuccessHandler(updated => {
+                homeImages = updated; renderHomeImages(); renderHomeAdminList();
+            }).addHomeImage(newImage);
+        }
+
+        function removeHomeImage(id) {
+            google.script.run.withSuccessHandler(updated => { homeImages = updated; renderHomeImages(); renderHomeAdminList(); }).removeHomeImage(id);
+        }
+        function addNews() {
+            const news = { id: Date.now(), title: document.getElementById('newsTitle').value, detail: document.getElementById('newsDetail').value, image: document.getElementById('newsImage').value };
+            if (!news.title || !news.detail) return alert('กรุณากรอกข้อมูลให้ครบ');
+            google.script.run.withSuccessHandler(updated => { newsList = updated; renderNews(); renderNewsAdminList(); }).addNews(news);
+        }
+        function removeNews(id) {
+             google.script.run.withSuccessHandler(updated => { newsList = updated; renderNews(); renderNewsAdminList(); }).removeNews(id);
+        }
+        function addManualImage() {
+            const url = document.getElementById('manualImageUrl').value;
+            if (url) { currentManualImages.push(url); renderCurrentManualImages(); document.getElementById('manualImageUrl').value = ''; }
+        }
+        function addManual() {
+            const title = document.getElementById('manualTitle').value;
+            if (!title || currentManualImages.length === 0) return alert('กรุณากรอกข้อมูลให้ครบ');
+            google.script.run.withSuccessHandler(updated => {
+                manualList = updated; renderManuals(); renderManualAdminList(); currentManualImages = []; renderCurrentManualImages();
+            }).addManual({ id: Date.now(), title, images: [...currentManualImages] });
+        }
+        function removeManual(id) {
+            google.script.run.withSuccessHandler(updated => { manualList = updated; renderManuals(); renderManualAdminList(); }).removeManual(id);
+        }
+        function addContact() {
+            const contact = {id:Date.now(), province:document.getElementById('contactProvince').value, district:document.getElementById('contactDistrict').value, subDistrict:document.getElementById('contactSubDistrict').value, description:document.getElementById('contactDescription').value};
+            if (!contact.province || !contact.district) return alert('กรุณากรอกข้อมูลให้ครบ');
+            google.script.run.withSuccessHandler(updated => { contactList = updated; renderContacts(); renderContactAdminList(); }).addContact(contact);
+        }
+        function removeContact(id) {
+            google.script.run.withSuccessHandler(updated => { contactList = updated; renderContacts(); renderContactAdminList(); }).removeContact(id);
+        }
+        function updateWebsiteName() {
+            const name = document.getElementById('websiteNameInput').value;
+            google.script.run.withSuccessHandler(newName => {
+                document.getElementById('websiteName').textContent = newName;
+                alert('บันทึกชื่อเว็บไซต์แล้ว!');
+            }).updateWebsiteName(name);
+        }
+
+        // --- RENDER ADMIN LISTS ---
+        function renderAllAdminLists() {
+            renderHomeAdminList();
+            renderNewsAdminList();
+            renderManualAdminList();
+            renderContactAdminList();
+            renderSubmissionsAdminList();
+        }
+        function renderHomeAdminList() {
+            const container = document.getElementById('homeImagesList');
+            container.innerHTML = homeImages.map(d => `<div class="bg-gray-100 p-2 rounded-md flex justify-between items-center"><span>${d.title}</span><button onclick="removeHomeImage(${d.id})" class="text-red-500"><i class="fas fa-trash"></i></button></div>`).join('');
+        }
+        function renderNewsAdminList() {
+            const container = document.getElementById('newsAdminList');
+            container.innerHTML = newsList.map(d => `<div class="bg-gray-100 p-2 rounded-md flex justify-between items-center"><span>${d.title}</span><button onclick="removeNews(${d.id})" class="text-red-500"><i class="fas fa-trash"></i></button></div>`).join('');
+        }
+         function renderManualAdminList() {
+            const container = document.getElementById('manualAdminList');
+            container.innerHTML = manualList.map(d => `<div class="bg-gray-100 p-2 rounded-md flex justify-between items-center"><span>${d.title}</span><button onclick="removeManual(${d.id})" class="text-red-500"><i class="fas fa-trash"></i></button></div>`).join('');
+        }
+        function renderContactAdminList() {
+            const container = document.getElementById('contactAdminList');
+            container.innerHTML = contactList.map(d => `<div class="bg-gray-100 p-2 rounded-md flex justify-between items-center"><span>${d.province}</span><button onclick="removeContact(${d.id})" class="text-red-500"><i class="fas fa-trash"></i></button></div>`).join('');
+        }
+        function renderCurrentManualImages() {
+            document.getElementById('manualImages').innerHTML = currentManualImages.map((url, i) => `<div class="bg-gray-100 p-2 rounded-md flex justify-between items-center text-sm"><span>...${url.slice(-30)}</span><button onclick="currentManualImages.splice(${i}, 1); renderCurrentManualImages();" class="text-red-500"><i class="fas fa-times"></i></button></div>`).join('');
+        }
+
+        // --- ADMIN SUBMISSIONS MANAGEMENT ---
+        function renderSubmissionsAdminList() {
+            const container = document.getElementById('submissionsList');
+             if (contactSubmissions.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">ยังไม่มีข้อความติดต่อ</p>';
+                return;
+            }
+            container.innerHTML = contactSubmissions.sort((a, b) => b.id - a.id).map(sub => `
+                <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-lg">${sub.firstName} ${sub.lastName} <span class="font-normal text-sm text-gray-500">&lt;${sub.email}&gt;</span></p>
+                            <p class="text-xs text-gray-400">${new Date(sub.timestamp).toLocaleString('th-TH')}</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick='openEditSubmissionModal(${JSON.stringify(sub)})' class="text-blue-500 hover:text-blue-700"><i class="fas fa-edit"></i></button>
+                            <button onclick="handleDeleteSubmission(${sub.id})" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                    <p class="mt-3 text-gray-700 whitespace-pre-wrap">${sub.message}</p>
+                </div>
+            `).join('');
+        }
+
+        function handleDeleteSubmission(id) {
+            if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบข้อความนี้?')) {
+                google.script.run.withSuccessHandler(updatedSubmissions => {
+                    contactSubmissions = updatedSubmissions;
+                    renderSubmissionsAdminList();
+                }).deleteContactSubmission(id);
+            }
+        }
+
+        function openEditSubmissionModal(submission) {
+            const modal = document.getElementById('editSubmissionModal');
+            modal.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+                    <h3 class="text-xl font-bold mb-4">แก้ไขข้อความ</h3>
+                    <form id="editSubmissionForm" class="space-y-4">
+                        <input type="hidden" id="editSubId" value="${submission.id}">
+                        <input type="hidden" id="editSubTimestamp" value="${submission.timestamp}">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-sm">ชื่อจริง</label><input type="text" id="editSubFirstName" value="${submission.firstName}" class="w-full border p-2 rounded-md mt-1"></div>
+                            <div><label class="block text-sm">นามสกุล</label><input type="text" id="editSubLastName" value="${submission.lastName}" class="w-full border p-2 rounded-md mt-1"></div>
+                        </div>
+                         <div><label class="block text-sm">อีเมล</label><input type="email" id="editSubEmail" value="${submission.email}" class="w-full border p-2 rounded-md mt-1"></div>
+                        <div><label class="block text-sm">ข้อความ</label><textarea id="editSubMessage" class="w-full border p-2 rounded-md mt-1 h-28">${submission.message}</textarea></div>
+                        <div class="flex justify-end gap-2 pt-4">
+                             <button type="button" onclick="closeEditSubmissionModal()" class="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100">ยกเลิก</button>
+                            <button type="submit" class="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700">บันทึก</button>
+                        </div>
+                    </form>
+                </div>`;
+            modal.classList.remove('hidden');
+            document.getElementById('editSubmissionForm').addEventListener('submit', handleUpdateSubmission);
+        }
+        
+        function closeEditSubmissionModal() {
+            document.getElementById('editSubmissionModal').classList.add('hidden');
+        }
+
+        function handleUpdateSubmission(event) {
+            event.preventDefault();
+            const updatedSubmission = {
+                id: document.getElementById('editSubId').value,
+                timestamp: document.getElementById('editSubTimestamp').value,
+                firstName: document.getElementById('editSubFirstName').value,
+                lastName: document.getElementById('editSubLastName').value,
+                email: document.getElementById('editSubEmail').value,
+                message: document.getElementById('editSubMessage').value
+            };
+
+            google.script.run.withSuccessHandler(updatedSubmissions => {
+                contactSubmissions = updatedSubmissions;
+                renderSubmissionsAdminList();
+                closeEditSubmissionModal();
+            }).updateContactSubmission(updatedSubmission);
+        }
+
+        // --- PASSWORD MANAGEMENT ---
+        function getAndRenderPasswords() {
+            google.script.run.withSuccessHandler(pwds => {
+                passwords = pwds;
+                const container = document.getElementById('passwordList');
+                container.innerHTML = passwords.map(pwd => `
+                    <div class="bg-gray-100 p-3 rounded-md flex justify-between items-center">
+                        <span class="font-mono">${pwd}</span>
+                        <button onclick="handleRemovePassword('${pwd}')" class="text-red-500 hover:text-red-700"><i class="fas fa-trash"></i></button>
+                    </div>`).join('') || '<p>ไม่มีรหัสผ่าน</p>';
+            }).getPasswords();
+        }
+        function handleAddPassword() {
+            const newPassword = document.getElementById('newPasswordInput').value;
+            if (newPassword && !passwords.includes(newPassword)) {
+                google.script.run.withSuccessHandler(updatedPasswords => {
+                    passwords = updatedPasswords;
+                    getAndRenderPasswords();
+                    document.getElementById('newPasswordInput').value = '';
+                }).addPassword(newPassword);
+            } else {
+                alert('รหัสผ่านนี้มีอยู่แล้ว หรือช่องกรอกว่างเปล่า');
+            }
+        }
+        function handleRemovePassword(passwordToRemove) {
+            if (passwords.length <= 1) return alert('ต้องมีรหัสผ่านอย่างน้อย 1 รหัส');
+            if (confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบรหัสผ่าน "${passwordToRemove}" ?`)) {
+                google.script.run.withSuccessHandler(updatedPasswords => {
+                    passwords = updatedPasswords;
+                    getAndRenderPasswords();
+                }).removePassword(passwordToRemove);
+            }
+        }
+        
+        // --- UTILITIES ---
+        function showNewsDetail(item) {
+            const news = typeof item === 'number' ? newsList.find(n => n.id === item) : item;
+            if (!news) return;
+
+            const container = document.getElementById('newsModal');
+            container.innerHTML = `<div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 relative"><div class="flex justify-between items-start mb-4"><h3 class="text-2xl font-bold pr-8">${news.title}</h3><button onclick="closeNewsModal()" class="text-gray-400 hover:text-gray-600 text-3xl absolute top-3 right-4">&times;</button></div>${news.image ? `<img src="${news.image}" class="w-full h-auto rounded-md mb-4">` : ''}<p class="text-gray-700 whitespace-pre-wrap">${news.detail}</p></div>`;
+            container.classList.remove('hidden');
+        }
+        function closeNewsModal() { document.getElementById('newsModal').classList.add('hidden'); }
+        function toggleContent(id, el) { 
+            document.getElementById(id).classList.toggle('open'); 
+            el.querySelector('.fa-chevron-down').classList.toggle('rotate-180');
+        }
+        function copyToClipboard(text, buttonEl) {
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = buttonEl.innerHTML;
+                buttonEl.innerHTML = 'คัดลอกแล้ว!';
+                buttonEl.disabled = true;
+                setTimeout(() => {
+                    buttonEl.innerHTML = originalText;
+                    buttonEl.disabled = false;
+                }, 2000); // Reset after 2 seconds
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('ไม่สามารถคัดลอกได้');
+            });
+        }
+    </script>
+</body>
+</html>
